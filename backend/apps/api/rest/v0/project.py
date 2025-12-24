@@ -1,5 +1,5 @@
 """Project API."""
-
+import logging
 from datetime import datetime
 from http import HTTPStatus
 from typing import Literal
@@ -13,6 +13,8 @@ from ninja.responses import Response
 from apps.api.decorators.cache import cache_response
 from apps.owasp.models.enums.project import ProjectLevel
 from apps.owasp.models.project import Project as ProjectModel
+
+logger = logging.getLogger(__name__)
 
 router = RouterPaginated(tags=["Projects"])
 
@@ -74,11 +76,31 @@ def list_projects(
     ),
 ) -> list[Project]:
     """Get projects."""
-    return filters.filter(
+    logger.info(
+        "list_projects called",
+        extra={
+            "endpoint": "list_projects",
+            "ordering": ordering,
+            "filters": filters.dict() if filters else None,
+        },
+    )
+
+    queryset = filters.filter(
         ProjectModel.active_projects.order_by(
             ordering or "-level_raw", "-stars_count", "-forks_count"
         )
     )
+
+    logger.info(
+        "list_projects completed",
+        extra={
+            "endpoint": "list_projects",
+            "result_count": queryset.count(),
+        },
+    )
+
+    return queryset
+
 
 
 @router.get(
@@ -97,11 +119,37 @@ def get_project(
     project_id: str = Path(example="Nest"),
 ) -> ProjectDetail | ProjectError:
     """Get project."""
-    if project := ProjectModel.active_projects.filter(
+    logger.info(
+        "get_project called",
+        extra={
+            "endpoint": "get_project",
+            "project_id": project_id,
+        },
+    )
+
+    project = ProjectModel.active_projects.filter(
         key__iexact=(
-            project_id if project_id.startswith("www-project-") else f"www-project-{project_id}"
+            project_id if project_id.startswith("www-project-")
+            else f"www-project-{project_id}"
         )
-    ).first():
+    ).first()
+
+    if project:
+        logger.info(
+            "get_project found",
+            extra={
+                "endpoint": "get_project",
+                "project_key": project.key,
+            },
+        )
         return project
+
+    logger.warning(
+        "get_project not found",
+        extra={
+            "endpoint": "get_project",
+            "project_id": project_id,
+        },
+    )
 
     return Response({"message": "Project not found"}, status=HTTPStatus.NOT_FOUND)
