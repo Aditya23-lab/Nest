@@ -39,7 +39,12 @@ class ProjectQuery:
             list[ProjectNode]: A list of recent active projects.
 
         """
-        return Project.objects.filter(is_active=True).order_by("-created_at")[:limit]
+        return (
+            Project.objects.filter(is_active=True)
+            .prefetch_related("published_releases")
+            .order_by("-created_at")[:limit]
+        )
+
 
     @strawberry.field
     def search_projects(self, query: str) -> list[ProjectNode]:
